@@ -389,7 +389,7 @@ function renderStatus(){
   if(over){const c=document.createElement('span');c.className='chip warn';c.textContent='Te pasaste por '+(used-P.cap)+' fotos: sacá algunas o elegí un fotolibro más grande';st.appendChild(c);}
   const low=lowResCount();if(low){const c=document.createElement('span');c.className='chip warn';c.textContent=low+(low===1?' foto con poca resolución':' fotos con poca resolución');st.appendChild(c);}
   if(S.samples){const c=document.createElement('span');c.className='chip';c.innerHTML='Estás viendo fotos de ejemplo. <button id="clear-samples">Quitarlas</button>';st.appendChild(c);
-    c.querySelector('button').addEventListener('click',clearSamples);}
+    c.querySelector('button').addEventListener('click',()=>clearSamples());}
 }
 function lowResCount(){let n=0;S.pages.forEach(pg=>LAYOUTS[pg.layout].slots.forEach((b,i)=>{const ph=pg.slots[i]&&photo(pg.slots[i]);if(ph&&effDpi(ph,b,pg.crops[i])<150)n++;}));return n;}
 
@@ -472,14 +472,15 @@ async function addFiles(files){
       S.photos.push({id:'p'+(++uid),url:URL.createObjectURL(blob),w:bm.width,h:bm.height,name:f.name,file:f});bm.close&&bm.close();
     }catch(e){bad++;}}
   if(bad)toast(bad+(bad===1?' archivo no se pudo abrir':' archivos no se pudieron abrir')+'. Si son fotos de iPhone (HEIC), exportalas como JPG.');
-  render();
+  else if(list.length)toast('Ubicamos tus fotos en las páginas. Podés moverlas, cambiar el diseño o encuadrarlas.');
+  autofill();
 }
 function clearSamples(silent){
   const ids=new Set(S.photos.filter(p=>p.sample).map(p=>p.id));
   S.photos=S.photos.filter(p=>!p.sample);
   S.pages.forEach(pg=>pg.slots.forEach((s,i)=>{if(ids.has(s)){pg.slots[i]=null;pg.crops[i]=CROP0();}}));
-  S.pages=S.pages.filter(pg=>pg.slots.some(Boolean));
-  if(!S.pages.length)S.pages=[newPage('1'),newPage('1')];
+  if(isPola()){if(S.pages.length!==15)S.pages=Array.from({length:15},()=>newPage('pol'));}
+  else{S.pages=S.pages.filter(pg=>pg.slots.some(Boolean));if(!S.pages.length)S.pages=[newPage('1'),newPage('1')];}
   S.samples=false;S.sel=null;S.armed=null;if(!silent)render();
 }
 
@@ -517,7 +518,7 @@ function openCart(){
     .forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;$('m-sum').append(dt,dd);});
   $('m-title').textContent='Revisá tu fotolibro';
   $('m-progress').hidden=true;$('m-done').hidden=true;$('m-row1').hidden=false;$('m-row2').hidden=true;$('m-send').disabled=false;
-  $('m-note').textContent=(empty?'Ojo: quedan '+empty+' espacios vacíos. ':'')+'Al confirmar guardamos tus fotos en calidad original para imprimir. No cierres esta ventana mientras se suben.';
+  $('m-note').textContent=(empty?'Ojo: quedan '+empty+' espacios vacíos. ':'')+'Al confirmar preparamos tu fotolibro en alta calidad para imprimir. No cierres esta ventana mientras se suben.';
   $('m-go').href=P.url;$('modal').hidden=false;$('m-send').focus();
 }
 // Design file + ordered list of photos to upload
@@ -535,24 +536,56 @@ function buildDesign(code){
 }
 async function post(body){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});const j=await r.json();if(!j.ok)throw new Error(j.error||'Error del servidor');return j;}
 function toB64(blob){return new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(blob);});}
+// ---------- print rendering (300 dpi JPG per page) ----------
+const DPI=300;const px=cm=>Math.round(cm/2.54*DPI);
+async function fullBitmap(ph){const src=ph.file||await fetch(ph.url).then(r=>r.blob());return createImageBitmap(src);}
+function wrapLines(ctx,text,maxW){const out=[];String(text||'').split('\n').forEach(par=>{let line='';par.split(/\s+/).forEach(w=>{const t=line?line+' '+w:w;if(ctx.measureText(t).width>maxW&&line){out.push(line);line=w;}else line=t;});out.push(line);});return out;}
+function drawText(ctx,text,box,W,H,size,family,weight,color){
+  if(!text)return;const r=rectOf(box,W,H);ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';
+  let fs=size;let lines;do{ctx.font=weight+' '+fs+'px '+family;lines=wrapLines(ctx,text,r.w*0.96);fs*=0.92;}while(lines.length*fs*1.25>r.h&&fs>8);
+  fs/=0.92;const lh=fs*1.2;const y0=r.y+r.h/2-(lines.length-1)*lh/2;lines.forEach((l,i)=>ctx.fillText(l,r.x+r.w/2,y0+i*lh));}
+function rectOf(b,W,H){const inner=(100-2*M)/100;return {x:W*(M/100+inner*b[0]/100),y:H*(M/100+inner*b[1]/100),w:W*inner*b[2]/100,h:H*inner*b[3]/100};}
+async function renderCover(){
+  const d=dims();const W=px(d.w),H=px(d.h);const cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
+  ctx.fillStyle=S.cover.bg;ctx.fillRect(0,0,W,H);const f=FONTS[S.cover.font].css;const ink=inkFor(S.cover.bg);
+  try{await document.fonts.load('600 100px '+f);}catch(e){}
+  drawText(ctx,S.cover.title,[0,30,100,24],W,H,W*0.09,f,'600',ink);
+  ctx.globalAlpha=0.8;drawText(ctx,S.cover.sub,[0,55,100,10],W,H,W*0.046,f,'600',ink);ctx.globalAlpha=1;
+  return new Promise(r=>cv.toBlob(r,'image/jpeg',0.92));
+}
+async function renderPage(pg){
+  const d=pageDims();const W=px(d.w),H=px(d.h);const cv=document.createElement('canvas');cv.width=W;cv.height=H;const ctx=cv.getContext('2d');
+  ctx.fillStyle='#FFFFFF';ctx.fillRect(0,0,W,H);const L=LAYOUTS[pg.layout];
+  for(let i=0;i<L.slots.length;i++){const id=pg.slots[i];if(!id)continue;const ph=photo(id);const box=L.slots[i];
+    const r=rectOf(box,W,H);const wc=winCm(box);const win={x:r.x,y:r.y,w:r.w,h:isPola()?r.w:r.h};
+    const g=geom(ph,wc.w/wc.h,{...pg.crops[i]});const bm=await fullBitmap(ph);
+    ctx.save();ctx.beginPath();ctx.rect(win.x,win.y,win.w,win.h);ctx.clip();
+    ctx.drawImage(bm,win.x+g.left/100*win.w,win.y+g.top/100*win.h,g.W/100*win.w,g.H/100*win.h);ctx.restore();bm.close&&bm.close();}
+  if(L.text&&pg.text){const pol=pg.layout==='pol';const fam=pol?'"Caveat", "Comic Sans MS", cursive':'"Bricolage Grotesque", "Segoe UI", sans-serif';
+    try{await document.fonts.load('600 100px '+fam);}catch(e){}
+    drawText(ctx,pg.text,L.text,W,H,W*(pol?0.09:0.052),fam,pol?'600':'500','#23262B');}
+  return new Promise(r=>cv.toBlob(r,'image/jpeg',0.92));
+}
 async function sendBook(){
   if(sending)return;sending=true;$('m-send').disabled=true;$('m-back').disabled=true;
-  const P=PRODUCTS[S.product];$('m-progress').hidden=false;$('m-title').textContent='Guardando tus fotos…';
-  const prog=(done,total)=>{$('m-bar').style.width=(done/total*100)+'%';$('m-ptext').textContent=done+' de '+total+' fotos guardadas';};
+  const P=PRODUCTS[S.product];$('m-progress').hidden=false;$('m-title').textContent='Guardando tu fotolibro…';
+  const kind=P.pola?'polaroid':'pagina';
+  const jobs=[{n:0,name:'tapa.jpg',make:renderCover},...S.pages.map((pg,i)=>({pg,i})).filter(({pg})=>pg.slots.some(Boolean)||(pg.text||'').trim()).map(({pg,i})=>({n:i+1,name:kind+'_'+String(i+1).padStart(2,'0')+'.jpg',make:()=>renderPage(pg)}))];
+  const prog=(done,total)=>{$('m-bar').style.width=(done/total*100)+'%';$('m-ptext').textContent=done+' de '+total+' archivos listos para imprimir';};
   try{
     const {codigo}=await post({accion:'iniciar',producto:P.name});
-    const {order,diseno}=buildDesign(codigo);let done=0;prog(0,order.length);
-    const queue=order.slice();
-    const worker=async()=>{while(queue.length){const it=queue.shift();const blob=it.ph.file||await fetch(it.ph.url).then(r=>r.blob());
-      let err;for(let t=0;t<3;t++){try{await post({accion:'foto',codigo,numero:it.n,nombre:it.ph.name,tipo:blob.type||'image/jpeg',datos:await toB64(blob)});err=null;break;}catch(e){err=e;}}
-      if(err)throw err;prog(++done,order.length);}};
-    await Promise.all([worker(),worker(),worker()]);
+    const {diseno}=buildDesign(codigo);let done=0;prog(0,jobs.length);
+    const queue=jobs.slice();
+    const worker=async()=>{while(queue.length){const it=queue.shift();const blob=await it.make();const datos=await toB64(blob);
+      let err;for(let t=0;t<3;t++){try{await post({accion:'foto',codigo,numero:it.n,nombre:it.name,tipo:'image/jpeg',datos});err=null;break;}catch(e){err=e;}}
+      if(err)throw err;prog(++done,jobs.length);}};
+    await Promise.all([worker(),worker()]);
     await post({accion:'terminar',codigo,diseno});
     $('m-title').textContent='¡Listo! Tu fotolibro quedó guardado';$('m-code').textContent=codigo;$('m-done').hidden=false;
     $('m-row1').hidden=true;$('m-row2').hidden=false;
     $('m-note').textContent='Copiá este código y pegalo en el campo de notas o comentarios al finalizar la compra. Así sabemos qué fotolibro imprimir.';
   }catch(e){
-    $('m-title').textContent='No se pudieron guardar las fotos';
+    $('m-title').textContent='No se pudo guardar tu fotolibro';
     $('m-note').textContent=(/Failed to fetch|NetworkError|Load failed/i.test(String(e))?'No hay conexión con el servidor. Revisá tu internet y probá de nuevo.':'Error: '+e.message+'. Probá de nuevo en unos minutos.');
     $('m-send').disabled=false;$('m-send').textContent='Reintentar';
   }finally{sending=false;$('m-back').disabled=false;}
