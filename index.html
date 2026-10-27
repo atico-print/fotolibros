@@ -73,7 +73,15 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:8px;
 .tray h2,.pages-head h2{font-family:var(--f-display);font-weight:700;font-size:17px;margin:0;text-wrap:balance}
 .drop{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;color:var(--muted);font-size:13.5px;transition:border-color .15s,background .15s}
 .drop.on{border-color:var(--accent);background:var(--accent-soft)}
-.drop label{color:var(--accent);font-weight:600;text-decoration:underline;cursor:pointer}
+.drop{display:flex;flex-direction:column;align-items:center;gap:8px}
+.upload-btn{display:block;width:100%;background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:14px;font-size:17px;font-weight:700;text-align:center;cursor:pointer}
+.upload-btn:hover{filter:brightness(1.08)}
+.drop:focus-within .upload-btn{outline:2px solid var(--accent);outline-offset:3px}
+.howto summary{cursor:pointer;font-size:13.5px;color:var(--accent);font-weight:600}
+.howto .hint{margin-top:6px}
+.finish{display:flex;flex-direction:column;align-items:center;gap:10px;padding:28px 12px 8px;text-align:center}
+.finish p{margin:0;font-family:var(--f-display);font-size:18px}
+.btn.big{padding:14px 28px;font-size:17px;border-radius:10px}
 .drop input{position:absolute;width:1px;height:1px;opacity:0}
 .hint{font-size:12.5px;color:var(--muted);margin:0}
 .thumbs{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:max-content;align-content:start;gap:6px;overflow-y:auto;padding:2px;flex:1 1 0;min-height:140px}
@@ -165,6 +173,31 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:8px;
 .dialog .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .note{font-size:12.5px;color:var(--muted);margin:0}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:70;max-width:calc(100% - 32px)}
+@media (max-width:700px){
+  body{font-size:16px}
+  .brand{font-size:17px}.brand small{font-size:13px}
+  .top-in{gap:10px}
+  .controls{flex-basis:100%;order:2}
+  .actions{margin-left:auto}
+  select,#product{font-size:16px;padding:10px 12px}
+  .field label{font-size:12px}
+  .btn{padding:11px 16px;font-size:16px}
+  .status{font-size:15px}
+  .card-tools select{font-size:15px;padding:8px}
+  .icon{width:42px;height:38px;font-size:17px}
+  .card-head{font-size:14px}
+  .grid{grid-template-columns:1fr;gap:22px}
+  header.top{position:static}
+  body::before{display:none}
+  .pola-grid>.card:first-child{grid-column:1/-1}
+  .pola-grid>.card:first-child .page{max-width:240px;margin-inline:auto}
+  .tray{top:auto}
+  .finish .btn.big{width:100%}
+  .zbar button{min-width:34px;height:32px;font-size:16px}
+  .slot .rm{width:30px;height:30px}
+  .nav{width:38px;height:38px}
+  .stage{gap:6px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
@@ -184,9 +217,7 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:8px;
       </div>
     </div>
     <div class="actions">
-      <button class="btn" id="autofill">Completar automáticamente</button>
-      <button class="btn" id="preview">Vista previa</button>
-      <button class="btn primary" id="tocart">Agregar al carrito</button>
+      <button class="btn primary" id="preview">Finalizar</button>
     </div>
   </div>
 </header>
@@ -197,15 +228,22 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:8px;
   <aside class="tray" aria-label="Tus fotos">
     <h2>Tus fotos</h2>
     <div class="drop" id="drop">
-      Arrastrá tus fotos acá o <label for="file">elegilas de tu equipo</label>
+      <label for="file" class="upload-btn">+ Subir fotos</label>
+      <span class="drop-text">o arrastralas acá</span>
       <input id="file" type="file" accept="image/jpeg,image/png,image/webp" multiple>
     </div>
-    <p class="hint">Tocá una foto y después un espacio de la página para ubicarla. En compu también podés arrastrarla. Para encuadrar, tocá la foto en la página: arrastrala para moverla y usá + y − para el zoom. El punto naranja marca fotos con poca resolución.</p>
+    <details class="howto"><summary>¿Cómo acomodo las fotos?</summary>
+      <p class="hint">Las fotos se ubican solas en las páginas. Para cambiar una, tocá la foto de abajo y después el espacio de la página donde la querés (en compu también podés arrastrarla). Para encuadrar, tocá la foto en la página: arrastrala para moverla y usá + y − para el zoom. El punto naranja marca fotos con poca resolución.</p>
+    </details>
     <div class="thumbs" id="thumbs"></div>
   </aside>
   <section class="pages-area" aria-label="Páginas">
     <div class="pages-head"><h2 id="pages-title">Tapa y páginas</h2><span class="hint" id="pages-hint"></span></div>
     <div class="grid edit" id="grid"></div>
+    <div class="finish">
+      <p>¿Ya está todo como querés?</p>
+      <button class="btn primary big" id="finish">Finalizar y ver vista previa</button>
+    </div>
   </section>
 </main>
 
@@ -216,7 +254,7 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:8px;
     <div class="spread" id="spread"></div>
     <button class="nav" id="next" aria-label="Siguiente">›</button>
   </div>
-  <div class="ov-foot"><span class="num" id="ov-pos"></span><button class="btn primary" id="ov-cart">Agregar al carrito</button></div>
+  <div class="ov-foot"><span class="num" id="ov-pos"></span><button class="btn primary" id="ov-cart">Confirmar fotolibro</button></div>
 </div>
 
 <div class="modal" id="modal" hidden>
@@ -232,8 +270,8 @@ select{background:var(--surface);border:1px solid var(--line);border-radius:8px;
       <div class="code" id="m-code"></div>
     </div>
     <p class="note" id="m-note"></p>
-    <div class="row" id="m-row1"><button class="btn" id="m-back">Seguir editando</button><button class="btn primary" id="m-send">Confirmar y guardar fotos</button></div>
-    <div class="row" id="m-row2" hidden><button class="btn" id="m-copy">Copiar código</button><a class="btn primary" id="m-go" target="_blank" rel="noopener">Ir a comprar</a></div>
+    <div class="row" id="m-row1"><button class="btn" id="m-back">Seguir editando</button><button class="btn primary" id="m-send">Guardar y agregar al carrito</button></div>
+    <div class="row" id="m-row2" hidden><button class="btn" id="m-copy">Copiar código</button><button class="btn primary" id="m-go">Agregar al carrito</button></div>
   </div>
 </div>
 
@@ -500,13 +538,14 @@ function renderSpread(){
   const sp=spreads();S.spread=Math.max(0,Math.min(S.spread,sp.length-1));const [a,b]=sp[S.spread];
   const box=$('spread');box.innerHTML='';
   const d=dims();const availW=Math.min(window.innerWidth-140,1100),availH=window.innerHeight-170;
-  let pw=Math.min(availW/2,availH*d.w/d.h);if(window.innerWidth<600)pw=Math.min((window.innerWidth-120)/2,availH*d.w/d.h);
+  const narrow=window.innerWidth<700&&!isPola();
+  let pw=Math.min(availW/2,availH*d.w/d.h);if(window.innerWidth<700)pw=narrow?Math.min(window.innerWidth-110,availH*d.w/d.h):Math.min((window.innerWidth-110)/2,availH*d.w/d.h);
   const put=el=>{el.style.width=pw+'px';box.appendChild(el);};
   const blank=()=>{const e=document.createElement('div');e.className='page blank';e.style.aspectRatio=d.w+' / '+d.h;return e;};
   const pd=pageDims();const back=()=>{const e=document.createElement('div');e.className='page';e.style.aspectRatio=pd.w+' / '+pd.h;return e;};
   if(isPola())pw=Math.min(pw,availH*pd.w/pd.h*0.8);
-  if(b==='cover'){put(blank());put(coverEl(false));$('ov-pos').textContent='Tapa';}
-  else if(a==='back'){put(back());put(pageEl(S.pages[b],b,false));$('ov-pos').textContent='Pág. '+(b+1)+' de '+S.pages.length+' · impresa de un solo lado';}
+  if(b==='cover'){if(!narrow)put(blank());put(coverEl(false));$('ov-pos').textContent='Tapa';}
+  else if(a==='back'){if(!narrow)put(back());put(pageEl(S.pages[b],b,false));$('ov-pos').textContent='Pág. '+(b+1)+' de '+S.pages.length+' · impresa de un solo lado';}
   else{put(pageEl(S.pages[a],a,false));put(b!==null?pageEl(S.pages[b],b,false):blank());$('ov-pos').textContent='Polaroids '+(a+1)+(b!==null?'–'+(b+1):'')+' de 15';}
   $('prev').disabled=S.spread===0;$('next').disabled=S.spread===sp.length-1;
   $('ov-title').textContent=PRODUCTS[S.product].name;
@@ -515,6 +554,12 @@ function openPreview(){S.spread=0;$('ov').hidden=false;renderSpread();$('ov-clos
 function closePreview(){$('ov').hidden=true;}
 
 /* ---------- cart ---------- */
+// Tiendanube product ids (and variant name when the product has sizes)
+const CART={mini10:{pid:'215129948',variation:'10x15'},clasico:{pid:'215164567'},premium:{pid:'215164944'},pola15:{pid:'215165611',variation:'15 x 21'},pola20:{pid:'215165611',variation:'20x30'}};
+function addToStoreCart(){const c=CART[S.product];if(!c){location.href=PRODUCTS[S.product].url;return;}
+  const f=document.createElement('form');f.method='post';f.action='https://aticomercedes.mitiendanube.com/comprar/';
+  const add=(n,v)=>{const i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;f.appendChild(i);};
+  add('add_to_cart',c.pid);if(c.variation)add('variation[0]',c.variation);add('quantity','1');document.body.appendChild(f);f.submit();}
 const API='https://script.google.com/macros/s/AKfycbyYu4zQG1OFHkNH1pSfNHGIBpPfcE62Yl6He6GPcx-6lfxg_aMKfrwm_K5kos5Bk3F0/exec';
 let sending=false;
 function openCart(){
@@ -531,7 +576,7 @@ function openCart(){
   $('m-progress').hidden=true;$('m-done').hidden=true;$('m-row1').hidden=false;$('m-row2').hidden=true;$('m-send').disabled=false;
   const blankPages=S.pages.length-filledPages();
   $('m-note').textContent=(blankPages?'Ojo: '+(P.pola?(blankPages===1?'queda 1 polaroid sin foto. ':'quedan '+blankPages+' polaroids sin foto. '):(blankPages===1?'queda 1 página sin fotos, que va en blanco. ':'quedan '+blankPages+' páginas sin fotos, que van en blanco. ')):'')+'Al confirmar preparamos tu fotolibro en alta calidad para imprimir. No cierres esta ventana mientras se suben.';
-  $('m-go').href=P.url;$('modal').hidden=false;$('m-send').focus();
+  $('modal').hidden=false;$('m-send').focus();
 }
 // Design file + ordered list of photos to upload
 function buildDesign(code){
@@ -595,7 +640,7 @@ async function sendBook(){
     await post({accion:'terminar',codigo,diseno});
     $('m-title').textContent='¡Listo! Tu fotolibro quedó guardado';$('m-code').textContent=codigo;$('m-done').hidden=false;
     $('m-row1').hidden=true;$('m-row2').hidden=false;
-    $('m-note').textContent='Copiá este código y pegalo en el campo de notas o comentarios al finalizar la compra. Así sabemos qué fotolibro imprimir.';
+    $('m-note').textContent='Guardá este código: identifica tu fotolibro. Al tocar "Agregar al carrito" pasás a la tienda para pagar. Si en la compra hay un campo de notas o comentarios, pegalo ahí.';
   }catch(e){
     $('m-title').textContent='No se pudo guardar tu fotolibro';
     $('m-note').textContent=(/Failed to fetch|NetworkError|Load failed/i.test(String(e))?'No hay conexión con el servidor. Revisá tu internet y probá de nuevo.':'Error: '+e.message+'. Probá de nuevo en unos minutos.');
@@ -629,9 +674,9 @@ $('product').addEventListener('change',e=>{S.product=e.target.value;toKind();ren
   if(PRODUCTS[q]){S.product=q;$('product').value=q;}})();
 $('o-v').addEventListener('click',()=>{S.orient='v';render();});
 $('o-h').addEventListener('click',()=>{S.orient='h';render();});
-$('autofill').addEventListener('click',autofill);
 $('preview').addEventListener('click',openPreview);
-$('tocart').addEventListener('click',openCart);
+$('finish').addEventListener('click',openPreview);
+$('m-go').addEventListener('click',addToStoreCart);
 $('ov-cart').addEventListener('click',()=>{closePreview();openCart();});
 $('ov-close').addEventListener('click',closePreview);
 $('prev').addEventListener('click',()=>{S.spread--;renderSpread();});
