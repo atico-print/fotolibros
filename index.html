@@ -271,7 +271,7 @@ const FONTS={
   caveat:{label:'Manuscrita',css:'"Caveat", "Comic Sans MS", cursive'}
 };
 const COLORS=[['Lino','#E8E0D2'],['Blanco','#F7F7F5'],['Negro','#1E1E1E'],['Azul marino','#1F2F4D'],['Verde salvia','#8FA58A'],['Terracota','#B5654A'],['Rosa empolvado','#E3C4C0'],['Bordó','#6B2232'],['Celeste','#BFD7E6']];
-const S={product:'clasico',orient:'v',photos:[],pages:[],cover:{title:'Vacaciones en familia',sub:'Verano 2026',font:'playfair',bg:'#1F2F4D'},armed:null,sel:null,spread:0,samples:false};
+const S={product:'clasico',orient:'h',photos:[],pages:[],cover:{title:'Vacaciones en familia',sub:'Verano 2026',font:'playfair',bg:'#1F2F4D'},armed:null,sel:null,spread:0,samples:false};
 function inkFor(hex){const n=parseInt(hex.slice(1),16);const r=(n>>16&255)/255,g=(n>>8&255)/255,b=(n&255)/255;const L=0.2126*r+0.7152*g+0.0722*b;return L>0.55?'#23262B':'#F6F3EC';}
 let uid=0;const $=id=>document.getElementById(id);
 
@@ -279,11 +279,12 @@ function dims(){const p=PRODUCTS[S.product];return S.orient==='v'||p.pola?{w:p.w
 // Inner pages: for the Pola Book they are the polaroid prints themselves (8.8 x 10.7 cm)
 const isPola=()=>!!PRODUCTS[S.product].pola;
 function pageDims(){return isPola()?{w:8.8,h:10.7}:dims();}
-function toKind(){ // rebuild pages when switching between photo books and Pola Book
-  const placed=[];S.pages.forEach(pg=>pg.slots.forEach(s=>{if(s)placed.push(s);}));
-  if(isPola()){S.pages=Array.from({length:15},()=>newPage('pol'));placed.slice(0,15).forEach((id,i)=>S.pages[i].slots[0]=id);}
-  else if(S.pages.some(pg=>pg.layout==='pol')){S.pages=placed.map(id=>{const pg=newPage('1');pg.slots[0]=id;return pg;});if(!S.pages.length)S.pages=[newPage('1'),newPage('1')];}
-  S.sel=null;}
+function toKind(){ // every product starts with all its pages (or 15 polaroids); photos already placed are kept
+  const placed=[];S.pages.forEach(pg=>pg.slots.forEach(s=>{if(s&&!placed.includes(s))placed.push(s);}));
+  const P=PRODUCTS[S.product];
+  S.pages=Array.from({length:P.pola?15:P.maxPages},()=>newPage(P.pola?'pol':'1'));
+  const all=placed.concat(S.photos.map(p=>p.id).filter(id=>!placed.includes(id)));
+  S.sel=null;if(all.length)autofill(true,all);}
 function photo(id){return S.photos.find(p=>p.id===id);}
 function placedCount(){return S.pages.reduce((n,pg)=>n+pg.slots.filter(Boolean).length,0);}
 function slotCount(){return S.pages.reduce((n,pg)=>n+pg.slots.length,0);}
@@ -391,13 +392,14 @@ function renderStatus(){
   st.appendChild(m);
   const pr=document.createElement('span');pr.className='price';pr.textContent=money(P.price);st.appendChild(pr);
   const info=document.createElement('span');info.className='hint';info.textContent=P.pola?(P.coverType+' · cuaderno '+P.w+'×'+P.h+' cm · '+P.sheets+' hojas en blanco de 240 g · 15 polaroids para pegar'):(P.coverType+' · '+dims().w+'×'+dims().h+' cm · papel fotográfico 200 g · páginas de un solo lado, con borde blanco y margen para el anillado');st.appendChild(info);
-  if(!P.pola){const pm=document.createElement('span');pm.className='num';pm.textContent=S.pages.length+' / '+P.maxPages+' páginas';st.insertBefore(pm,pr);
-    if(S.pages.length>P.maxPages){const c=document.createElement('span');c.className='chip warn';c.textContent='Te pasaste por '+(S.pages.length-P.maxPages)+' páginas: borrá páginas o juntá fotos usando diseños de 2, 3 o 4 fotos';st.appendChild(c);}}
+  if(!P.pola){const pm=document.createElement('span');pm.className='num';pm.textContent=filledPages()+' / '+S.pages.length+' páginas con fotos';st.insertBefore(pm,pr);}
+  if(!S.photos.length){const c=document.createElement('span');c.className='chip';c.textContent='Empezá subiendo tus fotos: se ubican solas en '+(P.pola?'las 15 polaroids':'las '+S.pages.length+' páginas');st.appendChild(c);}
   if(over){const c=document.createElement('span');c.className='chip warn';c.textContent='Te pasaste por '+(used-P.cap)+' fotos: sacá algunas o elegí un fotolibro más grande';st.appendChild(c);}
   const low=lowResCount();if(low){const c=document.createElement('span');c.className='chip warn';c.textContent=low+(low===1?' foto con poca resolución':' fotos con poca resolución');st.appendChild(c);}
   if(S.samples){const c=document.createElement('span');c.className='chip';c.innerHTML='Estás viendo fotos de ejemplo. <button id="clear-samples">Quitarlas</button>';st.appendChild(c);
     c.querySelector('button').addEventListener('click',()=>clearSamples());}
 }
+function filledPages(){return S.pages.filter(pg=>pg.slots.some(Boolean)).length;}
 function lowResCount(){let n=0;S.pages.forEach(pg=>LAYOUTS[pg.layout].slots.forEach((b,i)=>{const ph=pg.slots[i]&&photo(pg.slots[i]);if(ph&&effDpi(ph,b,pg.crops[i])<150)n++;}));return n;}
 
 function renderThumbs(){
@@ -444,34 +446,33 @@ function renderGrid(){
     const mk=(txt,lab,fn,dis)=>{const b=document.createElement('button');b.className='icon';b.textContent=txt;b.setAttribute('aria-label',lab);b.title=lab;b.disabled=!!dis;b.addEventListener('click',fn);return b;};
     tools.append(sel,
       mk('←','Mover antes',()=>{[S.pages[idx-1],S.pages[idx]]=[S.pages[idx],S.pages[idx-1]];S.sel=null;render();},idx===0),
-      mk('→','Mover después',()=>{[S.pages[idx+1],S.pages[idx]]=[S.pages[idx],S.pages[idx+1]];S.sel=null;render();},idx===S.pages.length-1),
-      mk('✕','Borrar página',()=>{S.pages.splice(idx,1);S.sel=null;render();}));
+      mk('→','Mover después',()=>{[S.pages[idx+1],S.pages[idx]]=[S.pages[idx],S.pages[idx+1]];S.sel=null;render();},idx===S.pages.length-1));
     c.append(h,tools,pageEl(pg,idx,true));g.appendChild(c);});
-  const add=document.createElement('button');add.className='add-page';add.textContent='+ Agregar página';
-  const P0=PRODUCTS[S.product];if(S.pages.length>=P0.maxPages){add.disabled=true;add.textContent='Llegaste al máximo de '+P0.maxPages+' páginas';}
-  add.addEventListener('click',()=>{if(S.pages.length>=PRODUCTS[S.product].maxPages)return;S.pages.push(newPage('1'));render();});g.appendChild(add);
-  $('pages-hint').textContent=S.pages.length+' páginas · '+slotCount()+' espacios para fotos';
+
+  $('pages-hint').textContent=S.pages.length+' páginas de '+PRODUCTS[S.product].name.replace('Fotolibro ','')+' · podés cambiar el diseño de cada una para poner hasta 4 fotos';
 }
 function render(){renderStatus();renderThumbs();renderGrid();
-  $('orient-field').hidden=isPola();
+  $('orient-field').hidden=true;
   document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',String(b.id==='o-'+S.orient)));}
 
 /* ---------- actions ---------- */
-function autofill(){
+const GROW={'1':()=>S.orient==='v'?'2a':'2b','2a':()=>'3','2b':()=>'3','3':()=>'4'};
+function autofill(quiet,order){
   const P=PRODUCTS[S.product];
-  const unused=S.photos.filter(p=>!usesOf(p.id)).map(p=>p.id);
+  const unused=(order||S.photos.map(p=>p.id)).filter(id=>!usesOf(id));
+  const room=()=>Math.min(unused.length,P.cap-placedCount());
+  const free=()=>S.pages.reduce((n,pg)=>n+pg.slots.filter(x=>!x).length,0);
+  // Not enough empty spaces: switch pages to designs with more photos, spreading them evenly
+  while(!P.pola&&room()>free()){
+    let best=null;S.pages.forEach(pg=>{if(GROW[pg.layout]&&(!best||pg.slots.length<best.slots.length))best=pg;});
+    if(!best)break;setLayout(best,GROW[best.layout]());}
   for(const pg of S.pages)for(let i=0;i<pg.slots.length;i++)if(!pg.slots[i]&&unused.length&&placedCount()<P.cap)pg.slots[i]=unused.shift();
-  const LAY={1:'1',2:S.orient==='v'?'2a':'2b',3:'3',4:'4'};
-  while(!P.pola&&unused.length&&placedCount()<P.cap&&S.pages.length<P.maxPages){
-    const left=Math.min(unused.length,P.cap-placedCount());const per=Math.min(4,Math.ceil(left/(P.maxPages-S.pages.length)));
-    const pg=newPage(LAY[per]);for(let i=0;i<per&&unused.length;i++)pg.slots[i]=unused.shift();S.pages.push(pg);}
-  if(unused.length)toast('Quedaron '+unused.length+' fotos sin ubicar: el '+P.name+' lleva hasta '+P.cap+(P.pola?' polaroids.':' fotos en '+P.maxPages+' páginas.'));
-  render();
+  if(unused.length&&!quiet)toast('Quedaron '+unused.length+' fotos sin ubicar: el '+P.name+' lleva hasta '+P.cap+(P.pola?' polaroids.':' fotos en '+P.maxPages+' páginas.'));
+  if(!quiet)render();
 }
 async function addFiles(files){
   const list=[...files].filter(f=>/^image\//.test(f.type)||/\.(jpe?g|png|webp)$/i.test(f.name));
   if(!list.length){toast('Elegí archivos JPG, PNG o WEBP.');return;}
-  if(S.samples)clearSamples(true);
   let bad=0;
   for(const f of list){try{const bm=await createImageBitmap(f);const sc=Math.min(1,1000/Math.max(bm.width,bm.height));
       const cv=document.createElement('canvas');cv.width=Math.round(bm.width*sc);cv.height=Math.round(bm.height*sc);cv.getContext('2d').drawImage(bm,0,0,cv.width,cv.height);
@@ -521,15 +522,15 @@ function openCart(){
   if(!used){toast('Todavía no ubicaste ninguna foto.');return;}
   if(S.pages.some(pg=>pg.slots.some(id=>id&&photo(id).sample))){toast('Estás usando fotos de ejemplo: subí tus fotos para armar tu fotolibro.');return;}
   if(used>P.cap){toast('Tenés '+used+' fotos y el '+P.name+' lleva hasta '+P.cap+'.');return;}
-  if(!P.pola&&S.pages.length>P.maxPages){toast('Tenés '+S.pages.length+' páginas y el '+P.name+' lleva hasta '+P.maxPages+'.');return;}
-  const empty=slotCount()-used;
+    const empty=slotCount()-used;
   $('m-sum').innerHTML='';
   const cname=(COLORS.find(c=>c[1].toLowerCase()===S.cover.bg.toLowerCase())||['color '+S.cover.bg])[0];
   [['Producto',P.name],['Tapa',P.coverType+', '+cname.toLowerCase()+', letra '+FONTS[S.cover.font].label.toLowerCase()+(S.cover.title?' · “'+S.cover.title+'”':'')],...(P.pola?[['Polaroids',used+' de 15']]:[['Páginas',String(S.pages.length)],['Fotos',used+' de '+P.cap]]),['Precio',money(P.price)]]
     .forEach(([k,v])=>{const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=v;$('m-sum').append(dt,dd);});
   $('m-title').textContent='Revisá tu fotolibro';
   $('m-progress').hidden=true;$('m-done').hidden=true;$('m-row1').hidden=false;$('m-row2').hidden=true;$('m-send').disabled=false;
-  $('m-note').textContent=(empty?'Ojo: quedan '+empty+' espacios vacíos. ':'')+'Al confirmar preparamos tu fotolibro en alta calidad para imprimir. No cierres esta ventana mientras se suben.';
+  const blankPages=S.pages.length-filledPages();
+  $('m-note').textContent=(blankPages?'Ojo: '+(P.pola?(blankPages===1?'queda 1 polaroid sin foto. ':'quedan '+blankPages+' polaroids sin foto. '):(blankPages===1?'queda 1 página sin fotos, que va en blanco. ':'quedan '+blankPages+' páginas sin fotos, que van en blanco. ')):'')+'Al confirmar preparamos tu fotolibro en alta calidad para imprimir. No cierres esta ventana mientras se suben.';
   $('m-go').href=P.url;$('modal').hidden=false;$('m-send').focus();
 }
 // Design file + ordered list of photos to upload
@@ -652,14 +653,8 @@ document.addEventListener('dragover',e=>{if(e.dataTransfer&&[...e.dataTransfer.t
 document.addEventListener('drop',e=>{if(e.target.closest&&!e.target.closest('#drop')&&e.dataTransfer.files.length){e.preventDefault();addFiles(e.dataTransfer.files);}});
 
 // Opening state: a filled example book so the editor shows what it does
-S.pages=[];render();
-samplePhotos().then(()=>{
-  const ids=S.photos.map(p=>p.id);
-  const plan=[['1',[0]],['2a',[1,2]],['txt',[3]],['3',[4,5,6]],['1',[10]],['4',[7,8,9,11]]];
-  plan.forEach(([l,ix])=>{const pg=newPage(l);ix.forEach((n,i)=>pg.slots[i]=ids[n]);if(l==='1'&&ix[0]===0)pg.crops[0]={z:1.6,cx:.35,cy:.45};if(l==='txt')pg.text='El primer chapuzón del verano';S.pages.push(pg);});
-  if(isPola())toKind();
-  render();
-});
+toKind();render();
+
 })();
 </script>
 
